@@ -321,7 +321,6 @@
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
             
-            // Read rows cleanly using raw cell mapping instead of index values to avoid row shifting
             const jsonRows = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: 0});
             
             processDumpTruckData(jsonRows);
@@ -340,11 +339,6 @@
             
             if (!truckPlate || truckPlate === 'Hauling DT' || truckPlate === 0 || truckPlate === "0") continue;
 
-            // Strict mapping to handle correct positions:
-            // Column M (12) = Day HR
-            // Column N (13) = Day Trip
-            // Column O (14) = Night HR
-            // Column P (15) = Night Trip
             const dayHR = parseFloat(row[12]) || 0;
             const dayTrip = parseInt(row[13]) || 0;
             const nightHR = parseFloat(row[14]) || 0;
@@ -380,15 +374,24 @@
             const work = truck.dayHR + truck.nightHR;
             let idle = 20 - work;
             if (idle < 0) idle = 0;
+            
+            let down = 0;
+
+            // Conditional Logic Fix: If Idle HR reaches 20 (meaning machine didn't function at all)
+            // shift 20 hours to Down column and clear out Idle column.
+            if (idle >= 20) {
+                down = 20;
+                idle = 0;
+            }
 
             const roundedWork = Math.round(work * 100) / 100;
             const roundedIdle = Math.round(idle * 100) / 100;
-            const down = 0;
+            const roundedDown = Math.round(down * 100) / 100;
 
             // Accumulate fleet grand totals
             grandWorkingHour += roundedWork;
             grandIdleHour += roundedIdle;
-            grandDownHour += down;
+            grandDownHour += roundedDown;
             grandTrip += truck.trips;
 
             return {
@@ -396,7 +399,7 @@
                 "Trip": truck.trips,
                 "Working Hour": roundedWork,
                 "Idle Hour": roundedIdle,
-                "Down Hour": down,
+                "Down Hour": roundedDown,
                 "Idle Reason": truck.reasons.size > 0 ? Array.from(truck.reasons).join(", ") : "None"
             };
         });
