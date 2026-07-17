@@ -14,6 +14,72 @@
             margin: 0;
             padding: 20px;
         }
+        /* Login Screen Styling */
+        #loginWrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 80vh;
+        }
+        .login-box {
+            background: #ffffff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 360px;
+            text-align: center;
+        }
+        .login-box h2 {
+            margin-top: 0;
+            color: #2c3e50;
+            margin-bottom: 24px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            font-size: 14px;
+            color: #555;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        .login-btn {
+            width: 100%;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        .login-btn:hover {
+            background-color: #2980b9;
+        }
+        .error-msg {
+            color: #e74c3c;
+            font-size: 14px;
+            margin-top: 12px;
+            display: none;
+        }
+
+        /* Main Dashboard Styling */
+        #dashboardWrapper {
+            display: none; /* Hidden until successful login */
+        }
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -22,9 +88,26 @@
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
+        .header-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
         h1 {
             color: #2c3e50;
-            margin-top: 0;
+            margin: 0;
+        }
+        .logout-btn {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .logout-btn:hover {
+            background-color: #c0392b;
         }
         .upload-section {
             border: 2px dashed #3498db;
@@ -79,41 +162,99 @@
 </head>
 <body>
 
-<div class="container">
-    <h1>🚚 Dump Truck Activity Dashboard</h1>
-    <p>Upload your daily sheet to calculate combined shifts, idle times, and export summaries.</p>
-    
-    <!-- Upload Area -->
-    <div class="upload-section" onclick="document.getElementById('fileInput').click()">
-        <p>Click here to upload your Dump Truck Activity Excel File</p>
-        <input type="file" id="fileInput" accept=".xlsx, .xls">
+<!-- Login Container -->
+<div id="loginWrapper">
+    <div class="login-box">
+        <h2>🔒 Dashboard Login</h2>
+        <div class="input-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" placeholder="Enter username">
+        </div>
+        <div class="input-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Enter password">
+        </div>
+        <button class="login-btn" onclick="checkLogin()">Login</button>
+        <div id="errorMsg" class="error-msg">Invalid username or password!</div>
     </div>
+</div>
 
-    <!-- Export Button -->
-    <button class="btn" id="exportBtn">📥 Export Summary to Excel</button>
+<!-- Main Content Dashboard Container -->
+<div id="dashboardWrapper">
+    <div class="container">
+        <div class="header-area">
+            <h1>🚚 Dump Truck Activity Dashboard</h1>
+            <button class="logout-btn" onclick="handleLogout()">Logout</button>
+        </div>
+        <p>Upload your daily sheet to calculate combined shifts, idle times, and export summaries.</p>
+        
+        <!-- Upload Area -->
+        <div class="upload-section" onclick="document.getElementById('fileInput').click()">
+            <p>Click here to upload your Dump Truck Activity Excel File</p>
+            <input type="file" id="fileInput" accept=".xlsx, .xls">
+        </div>
 
-    <!-- Results Table -->
-    <div class="table-responsive">
-        <table id="summaryTable" style="display: none;">
-            <thead>
-                <tr>
-                    <th>Dump Truck Plate Number</th>
-                    <th>Trip</th>
-                    <th>Working Hour</th>
-                    <th>Idle Hour</th>
-                    <th>Down Hour</th>
-                    <th>Idle Reason</th>
-                </tr>
-            </thead>
-            <tbody id="tableBody">
-                <!-- Data injected dynamically -->
-            </tbody>
-        </table>
+        <!-- Export Button -->
+        <button class="btn" id="exportBtn">📥 Export Summary to Excel</button>
+
+        <!-- Results Table -->
+        <div class="table-responsive">
+            <table id="summaryTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Dump Truck Plate Number</th>
+                        <th>Trip</th>
+                        <th>Working Hour</th>
+                        <th>Idle Hour</th>
+                        <th>Down Hour</th>
+                        <th>Idle Reason</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Data injected dynamically -->
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
 <script>
     let processedData = []; // Holds data for exporting
+
+    // Check credentials
+    function checkLogin() {
+        const userIn = document.getElementById('username').value;
+        const passIn = document.getElementById('password').value;
+        const errorDiv = document.getElementById('errorMsg');
+
+        if (userIn === "marta" && passIn === "0101") {
+            // Hide login, show dashboard
+            document.getElementById('loginWrapper').style.display = 'none';
+            document.getElementById('dashboardWrapper').style.display = 'block';
+            errorDiv.style.display = 'none';
+        } else {
+            errorDiv.style.display = 'block';
+        }
+    }
+
+    // Support pressing 'Enter' key on password field to log in
+    document.getElementById('password').addEventListener('keyup', function(event) {
+        if (event.key === 'Enter') {
+            checkLogin();
+        }
+    });
+
+    function handleLogout() {
+        // Clear fields and switch back views
+        document.getElementById('username').value = "";
+        document.getElementById('password').value = "";
+        document.getElementById('loginWrapper').style.display = 'flex';
+        document.getElementById('dashboardWrapper').style.display = 'none';
+        // Reset file upload & tables
+        document.getElementById('fileInput').value = "";
+        document.getElementById('summaryTable').style.display = "none";
+        document.getElementById('exportBtn').style.display = "none";
+    }
 
     document.getElementById('fileInput').addEventListener('change', handleFile, false);
     document.getElementById('exportBtn').addEventListener('click', exportToExcel, false);
@@ -127,11 +268,9 @@
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, {type: 'array'});
             
-            // Fetch first sheet
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
             
-            // Convert to array of arrays to handle multi-row headers cleanly
             const jsonRows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
             
             processDumpTruckData(jsonRows);
@@ -140,20 +279,16 @@
     }
 
     function processDumpTruckData(rows) {
-        // Truck grouping map
         const summaryMap = {};
 
-        // Loop rows starting from index 1 (skipping row 0 headers)
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             if (!row || row.length === 0) continue;
 
             const truckPlate = row[1]; // Column B: 'Hauling DT'
             
-            // Skip invalid rows, empty entries, or header repetitions
             if (!truckPlate || truckPlate === 'Hauling DT' || truckPlate === 0 || truckPlate === "0") continue;
 
-            // Map standard column positions based on your file layout
             const dayHR = parseFloat(row[12]) || 0;     // Column M: Day HR
             const dayTrip = parseInt(row[13]) || 0;    // Column N: Day Trip
             const nightHR = parseFloat(row[14]) || 0;   // Column O: Night HR
@@ -178,11 +313,10 @@
             }
         }
 
-        // Apply formulas and prepare output array
         processedData = Object.values(summaryMap).map(truck => {
             const work = truck.dayHR + truck.nightHR;
             let idle = 20 - work;
-            if (idle < 0) idle = 0; // Prevent negative values
+            if (idle < 0) idle = 0;
 
             return {
                 "Dump Truck Plate Number": truck.plate,
@@ -199,7 +333,7 @@
 
     function renderTable(data) {
         const tbody = document.getElementById('tableBody');
-        tbody.innerHTML = ""; // Clear old results
+        tbody.innerHTML = ""; 
 
         data.forEach(item => {
             const tr = document.createElement('tr');
@@ -214,7 +348,6 @@
             tbody.appendChild(tr);
         });
 
-        // Show table and export button
         document.getElementById('summaryTable').style.display = "table";
         document.getElementById('exportBtn').style.display = "inline-block";
     }
@@ -226,7 +359,6 @@
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Summary Report");
         
-        // Triggers automatic download of the Excel summary sheet
         XLSX.writeFile(workbook, "Dump_Truck_Summary_Report.xlsx");
     }
 </script>
