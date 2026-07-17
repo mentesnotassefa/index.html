@@ -98,6 +98,13 @@
             color: #2c3e50;
             margin: 0;
         }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 5px;
+        }
         .logout-btn {
             background-color: #e74c3c;
             color: white;
@@ -140,6 +147,7 @@
         }
         .table-responsive {
             overflow-x: auto;
+            margin-bottom: 30px;
         }
         table {
             width: 100%;
@@ -155,8 +163,21 @@
             background-color: #34495e;
             color: white;
         }
+        /* Style specifically for Total Summary table */
+        .total-table th {
+            background-color: #2c3e50;
+        }
+        .total-table td {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            font-size: 16px;
+            color: #2c3e50;
+        }
         tr:hover {
             background-color: #f5f5f5;
+        }
+        .hidden-element {
+            display: none;
         }
     </style>
 </head>
@@ -197,29 +218,58 @@
         <!-- Export Button -->
         <button class="btn" id="exportBtn">📥 Export Summary to Excel</button>
 
-        <!-- Results Table -->
-        <div class="table-responsive">
-            <table id="summaryTable" style="display: none;">
-                <thead>
-                    <tr>
-                        <th>Dump Truck Plate Number</th>
-                        <th>Trip</th>
-                        <th>Working Hour</th>
-                        <th>Idle Hour</th>
-                        <th>Down Hour</th>
-                        <th>Idle Reason</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody">
-                    <!-- Data injected dynamically -->
-                </tbody>
-            </table>
+        <!-- Section 1: Grand Totals Table -->
+        <div id="totalSection" class="hidden-element">
+            <h2>📊 Fleet Grand Totals Summary</h2>
+            <div class="table-responsive">
+                <table class="total-table">
+                    <thead>
+                        <tr>
+                            <th>Total Working Hour</th>
+                            <th>Total Idle Hour</th>
+                            <th>Total Down Hour</th>
+                            <th>Total Trip</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td id="grandWorkingHour">0</td>
+                            <td id="grandIdleHour">0</td>
+                            <td id="grandDownHour">0</td>
+                            <td id="grandTrip">0</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Section 2: Individual Results Table -->
+        <div id="individualSection" class="hidden-element">
+            <h2>📋 Individual Dump Truck Breakdown</h2>
+            <div class="table-responsive">
+                <table id="summaryTable">
+                    <thead>
+                        <tr>
+                            <th>Dump Truck Plate Number</th>
+                            <th>Trip</th>
+                            <th>Working Hour</th>
+                            <th>Idle Hour</th>
+                            <th>Down Hour</th>
+                            <th>Idle Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Data injected dynamically -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-    let processedData = []; // Holds data for exporting
+    let processedData = []; // Holds individual data for exporting
+    let grandTotalsData = []; // Holds total calculation objects for exporting
 
     // Check credentials
     function checkLogin() {
@@ -228,7 +278,6 @@
         const errorDiv = document.getElementById('errorMsg');
 
         if (userIn === "marta" && passIn === "0101") {
-            // Hide login, show dashboard
             document.getElementById('loginWrapper').style.display = 'none';
             document.getElementById('dashboardWrapper').style.display = 'block';
             errorDiv.style.display = 'none';
@@ -245,14 +294,15 @@
     });
 
     function handleLogout() {
-        // Clear fields and switch back views
         document.getElementById('username').value = "";
         document.getElementById('password').value = "";
         document.getElementById('loginWrapper').style.display = 'flex';
         document.getElementById('dashboardWrapper').style.display = 'none';
-        // Reset file upload & tables
+        
+        // Reset file upload & views
         document.getElementById('fileInput').value = "";
-        document.getElementById('summaryTable').style.display = "none";
+        document.getElementById('totalSection').style.display = "none";
+        document.getElementById('individualSection').style.display = "none";
         document.getElementById('exportBtn').style.display = "none";
     }
 
@@ -313,29 +363,60 @@
             }
         }
 
+        // Apply formulas per individual truck
+        let grandWorkingHour = 0;
+        let grandIdleHour = 0;
+        let grandDownHour = 0;
+        let grandTrip = 0;
+
         processedData = Object.values(summaryMap).map(truck => {
             const work = truck.dayHR + truck.nightHR;
             let idle = 20 - work;
             if (idle < 0) idle = 0;
 
+            const roundedWork = Math.round(work * 100) / 100;
+            const roundedIdle = Math.round(idle * 100) / 100;
+            const down = 0;
+
+            // Accumulate grand totals
+            grandWorkingHour += roundedWork;
+            grandIdleHour += roundedIdle;
+            grandDownHour += down;
+            grandTrip += truck.trips;
+
             return {
                 "Dump Truck Plate Number": truck.plate,
                 "Trip": truck.trips,
-                "Working Hour": Math.round(work * 100) / 100,
-                "Idle Hour": Math.round(idle * 100) / 100,
-                "Down Hour": 0,
+                "Working Hour": roundedWork,
+                "Idle Hour": roundedIdle,
+                "Down Hour": down,
                 "Idle Reason": truck.reasons.size > 0 ? Array.from(truck.reasons).join(", ") : "None"
             };
         });
 
-        renderTable(processedData);
+        // Structure grand total values
+        grandTotalsData = [{
+            "Total Working Hour": Math.round(grandWorkingHour * 100) / 100,
+            "Total Idle Hour": Math.round(grandIdleHour * 100) / 100,
+            "Total Down Hour": Math.round(grandDownHour * 100) / 100,
+            "Total Trip": grandTrip
+        }];
+
+        renderTables(processedData, grandTotalsData[0]);
     }
 
-    function renderTable(data) {
+    function renderTables(individualData, totals) {
+        // 1. Render Grand Totals Table
+        document.getElementById('grandWorkingHour').innerText = totals["Total Working Hour"];
+        document.getElementById('grandIdleHour').innerText = totals["Total Idle Hour"];
+        document.getElementById('grandDownHour').innerText = totals["Total Down Hour"];
+        document.getElementById('grandTrip').innerText = totals["Total Trip"];
+
+        // 2. Render Individual Breakdown Table
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = ""; 
 
-        data.forEach(item => {
+        individualData.forEach(item => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><b>${item["Dump Truck Plate Number"]}</b></td>
@@ -348,18 +429,27 @@
             tbody.appendChild(tr);
         });
 
-        document.getElementById('summaryTable').style.display = "table";
+        // Reveal sections and layout elements
+        document.getElementById('totalSection').style.display = "block";
+        document.getElementById('individualSection').style.display = "block";
         document.getElementById('exportBtn').style.display = "inline-block";
     }
 
     function exportToExcel() {
         if (processedData.length === 0) return;
         
-        const worksheet = XLSX.utils.json_to_sheet(processedData);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Summary Report");
         
-        XLSX.writeFile(workbook, "Dump_Truck_Summary_Report.xlsx");
+        // Sheet 1: Grand Totals
+        const totalWorksheet = XLSX.utils.json_to_sheet(grandTotalsData);
+        XLSX.utils.book_append_sheet(workbook, totalWorksheet, "Grand Totals");
+
+        // Sheet 2: Individual Breakdown
+        const individualWorksheet = XLSX.utils.json_to_sheet(processedData);
+        XLSX.utils.book_append_sheet(workbook, individualWorksheet, "Individual Summary");
+        
+        // Trigger automatic browser download
+        XLSX.writeFile(workbook, "Dump_Truck_Full_Summary_Report.xlsx");
     }
 </script>
 
