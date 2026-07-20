@@ -116,6 +116,39 @@
         .logout-btn:hover {
             background-color: #c0392b;
         }
+        
+        /* Config Controls Area */
+        .controls-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+        .planned-hour-box {
+            background: #fdfefe;
+            border: 1px solid #bdc3c7;
+            padding: 15px;
+            border-radius: 6px;
+            min-width: 220px;
+        }
+        .planned-hour-box label {
+            display: block;
+            font-weight: 600;
+            font-size: 14px;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+        .planned-hour-box input {
+            width: 80px;
+            padding: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
         .upload-section {
             border: 2px dashed #3498db;
             padding: 20px;
@@ -123,7 +156,8 @@
             border-radius: 6px;
             background: #ecf0f1;
             cursor: pointer;
-            margin-bottom: 20px;
+            flex: 1;
+            min-width: 300px;
         }
         .upload-section:hover {
             background: #e2e7e9;
@@ -207,12 +241,22 @@
             <h1>🚚 Dump Truck Activity Dashboard</h1>
             <button class="logout-btn" onclick="handleLogout()">Logout</button>
         </div>
-        <p>Upload your daily sheet to calculate combined shifts, idle times, and export summaries.</p>
+        <p>Set planned shift hours below, then upload your daily sheet to calculate activity breakdowns.</p>
         
-        <!-- Upload Area -->
-        <div class="upload-section" onclick="document.getElementById('fileInput').click()">
-            <p>Click here to upload your Dump Truck Activity Excel File</p>
-            <input type="file" id="fileInput" accept=".xlsx, .xls">
+        <!-- Controls & Upload Box Area -->
+        <div class="controls-row">
+            <!-- Planned Hours Configuration Input Box -->
+            <div class="planned-hour-box">
+                <label for="plannedHoursInput">⏱️ Total Planned Hours:</label>
+                <input type="number" id="plannedHoursInput" value="20" min="1" max="24" onchange="reProcessCurrentData()">
+                <small style="display:block; color:#7f8c8d; margin-top:5px;">Change to 10 for Sundays</small>
+            </div>
+
+            <!-- Upload Area -->
+            <div class="upload-section" onclick="document.getElementById('fileInput').click()">
+                <p style="margin:5px 0 0 0; font-weight:600; color:#2c3e50;">Click here to upload your Dump Truck Activity Excel File</p>
+                <input type="file" id="fileInput" accept=".xlsx, .xls">
+            </div>
         </div>
 
         <!-- Export Button -->
@@ -268,8 +312,9 @@
 </div>
 
 <script>
-    let processedData = []; // Holds individual data for exporting
-    let grandTotalsData = []; // Holds total calculation objects for exporting
+    let rawExcelRows = null; 
+    let processedData = []; 
+    let grandTotalsData = []; 
 
     // Check credentials
     function checkLogin() {
@@ -286,7 +331,6 @@
         }
     }
 
-    // Support pressing 'Enter' key on password field to log in
     document.getElementById('password').addEventListener('keyup', function(event) {
         if (event.key === 'Enter') {
             checkLogin();
@@ -299,8 +343,9 @@
         document.getElementById('loginWrapper').style.display = 'flex';
         document.getElementById('dashboardWrapper').style.display = 'none';
         
-        // Reset file upload & views
         document.getElementById('fileInput').value = "";
+        document.getElementById('plannedHoursInput').value = "20";
+        rawExcelRows = null;
         document.getElementById('totalSection').style.display = "none";
         document.getElementById('individualSection').style.display = "none";
         document.getElementById('exportBtn').style.display = "none";
@@ -321,29 +366,53 @@
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
             
-            const jsonRows = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: 0});
+            rawExcelRows = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: 0});
             
-            processDumpTruckData(jsonRows);
+            processDumpTruckData(rawExcelRows);
         };
         reader.readAsArrayBuffer(file);
     }
 
+    function reProcessCurrentData() {
+        if (rawExcelRows) {
+            processDumpTruckData(rawExcelRows);
+        }
+    }
+
+    // Explicitly check row lengths to catch truncated array boundaries safely
+    function getRowCellValue(row, targetIndex) {
+        if (!row || targetIndex >= row.length) return 0;
+        const val = row[targetIndex];
+        if (val === undefined || val === null) return 0;
+        if (typeof val === 'number') return val;
+        
+        const cleanStr = String(val).replace(/[^0-9.]/g, '');
+        const parsed = parseFloat(cleanStr);
+        return isNaN(parsed) ? 0 : parsed;
+    }
+
     function processDumpTruckData(rows) {
         const summaryMap = {};
+        const plannedHours = parseFloat(document.getElementById('plannedHoursInput').value) || 20;
 
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             if (!row || row.length === 0) continue;
 
             const truckPlate = row[1]; // Column B: 'Hauling DT'
-            
             if (!truckPlate || truckPlate === 'Hauling DT' || truckPlate === 0 || truckPlate === "0") continue;
 
-            const dayHR = parseFloat(row[12]) || 0;
-            const dayTrip = parseInt(row[13]) || 0;
-            const nightHR = parseFloat(row[14]) || 0;
-            const nightTrip = parseInt(row[15]) || 0;
-            const reason = row[17] ? String(row[17]).trim() : ""; // Column R: Idle Reason
+            // Target mapping matches precisely with alphabetical descriptions:
+            // Column M = Index 12 (Day shift HR)
+            // Column N = Index 13 (Day shift Trip)
+            // Column O = Index 14 (Night shift HR)
+            // Column P = Index 15 (Night shift Trip)
+            const dayHR = getRowCellValue(row, 12);
+            const dayTrip = getRowCellValue(row, 13);
+            const nightHR = getRowCellValue(row, 14);
+            const nightTrip = getRowCellValue(row, 15);
+            
+            const reason = row[17] ? String(row[17]).trim() : ""; 
 
             if (!summaryMap[truckPlate]) {
                 summaryMap[truckPlate] = {
@@ -364,39 +433,38 @@
             }
         }
 
-        // Apply formulas per individual truck
         let grandWorkingHour = 0;
         let grandIdleHour = 0;
         let grandDownHour = 0;
         let grandTrip = 0;
 
         processedData = Object.values(summaryMap).map(truck => {
-            const work = truck.dayHR + truck.nightHR;
-            let idle = 20 - work;
+            let totalShiftsWork = truck.dayHR + truck.nightHR;
+            let work = Math.min(totalShiftsWork, plannedHours);
+            
+            let idle = plannedHours - work;
             if (idle < 0) idle = 0;
             
             let down = 0;
 
-            // Conditional Logic Fix: If Idle HR reaches 20 (meaning machine didn't function at all)
-            // shift 20 hours to Down column and clear out Idle column.
-            if (idle >= 20) {
-                down = 20;
+            if (idle >= plannedHours) {
+                down = plannedHours;
                 idle = 0;
             }
 
             const roundedWork = Math.round(work * 100) / 100;
             const roundedIdle = Math.round(idle * 100) / 100;
             const roundedDown = Math.round(down * 100) / 100;
+            const finalTrips = Math.round(truck.trips * 100) / 100;
 
-            // Accumulate fleet grand totals
             grandWorkingHour += roundedWork;
             grandIdleHour += roundedIdle;
             grandDownHour += roundedDown;
-            grandTrip += truck.trips;
+            grandTrip += finalTrips;
 
             return {
                 "Dump Truck Plate Number": truck.plate,
-                "Trip": truck.trips,
+                "Trip": finalTrips,
                 "Working Hour": roundedWork,
                 "Idle Hour": roundedIdle,
                 "Down Hour": roundedDown,
@@ -404,25 +472,22 @@
             };
         });
 
-        // Structure grand total values
         grandTotalsData = [{
             "Total Working Hour": Math.round(grandWorkingHour * 100) / 100,
             "Total Idle Hour": Math.round(grandIdleHour * 100) / 100,
             "Total Down Hour": Math.round(grandDownHour * 100) / 100,
-            "Total Trip": grandTrip
+            "Total Trip": Math.round(grandTrip * 100) / 100
         }];
 
         renderTables(processedData, grandTotalsData[0]);
     }
 
     function renderTables(individualData, totals) {
-        // 1. Render Grand Totals Table
         document.getElementById('grandWorkingHour').innerText = totals["Total Working Hour"];
         document.getElementById('grandIdleHour').innerText = totals["Total Idle Hour"];
         document.getElementById('grandDownHour').innerText = totals["Total Down Hour"];
         document.getElementById('grandTrip').innerText = totals["Total Trip"];
 
-        // 2. Render Individual Breakdown Table
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = ""; 
 
@@ -439,7 +504,6 @@
             tbody.appendChild(tr);
         });
 
-        // Reveal sections and layout elements
         document.getElementById('totalSection').style.display = "block";
         document.getElementById('individualSection').style.display = "block";
         document.getElementById('exportBtn').style.display = "inline-block";
@@ -450,15 +514,12 @@
         
         const workbook = XLSX.utils.book_new();
         
-        // Sheet 1: Grand Totals
         const totalWorksheet = XLSX.utils.json_to_sheet(grandTotalsData);
         XLSX.utils.book_append_sheet(workbook, totalWorksheet, "Grand Totals");
 
-        // Sheet 2: Individual Breakdown
         const individualWorksheet = XLSX.utils.json_to_sheet(processedData);
         XLSX.utils.book_append_sheet(workbook, individualWorksheet, "Individual Summary");
         
-        // Trigger automatic browser download
         XLSX.writeFile(workbook, "Dump_Truck_Full_Summary_Report.xlsx");
     }
 </script>
